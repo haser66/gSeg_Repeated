@@ -1,0 +1,1080 @@
+
+library(MASS)
+library(igraph)
+library(ade4)
+library(gtools)
+library(dplyr)
+
+
+
+## gSeg1 - single change-point
+gseg1_repeated = function(n, l, edges, statistics=c("all","r","ri"), n0=0.05*n, n1=0.95*n, pval.appr=TRUE, skew.corr=TRUE, pval.perm=FALSE, B=100, alp=1, kap=1){
+  
+  r1 = list()
+  n0 = ceiling(n0)
+  n1 = floor(n1)
+  Ebynode = vector("list", n)
+  
+  for(i in 1:n) Ebynode[[i]]=rep(0,0)
+  for(i in 1:nrow(edges)){
+    if(edges[i,1]==edges[i,2]){
+      Ebynode[[edges[i,1]]] = c(Ebynode[[edges[i,1]]],edges[i,2])
+    }else{
+      Ebynode[[edges[i,1]]] = c(Ebynode[[edges[i,1]]],edges[i,2])
+      Ebynode[[edges[i,2]]] = c(Ebynode[[edges[i,2]]],edges[i,1])
+    }
+  }
+  
+  n0_us = n0
+  n1_us = n1
+  
+  if(n0<2){
+    n0=2
+  }
+  if(n1>(n-2)){
+    n1=n-2
+  }
+  
+  r1$scanZ = gcp1bynode(n,l,Ebynode,statistics,n0,n1,alp=alp,kap=kap)
+  
+  if (pval.appr==TRUE){
+    mypval1 = pval1(n,l,edges,Ebynode,r1$scanZ,statistics, skew.corr,n0,n1)
+    r1$pval.appr = mypval1
+  }
+  if (pval.perm==TRUE){
+    mypval2 = permpval1(n,l,Ebynode,r1$scanZ,statistics,B,n0,n1,alp=alp,kap=kap)
+    r1$pval.perm = mypval2
+  }
+  
+  
+  if (length(which(!is.na(match(c("r","repeated","all"),statistics))))>0){
+    cat("Repeated edge-count statistic: \n")
+    if(n0_us<=1){
+      cat("  Note: Starting index has been set to n0 = 2 as the repeated edge-count test statistic is not well-defined for t<2. \n")
+    }
+    if(n1_us>=n-1){
+      cat("  Note: Ending index has been set to n1 =", n-2, " as the repeated edge-count test statistic is not well-defined for t>",n-2,". \n")
+    }
+    
+    cat("  Estimated change-point location:", r1$scanZ$rmax$tauhat, "\n")
+    cat("  Test statistic (M):", r1$scanZ$rmax$Zmax, "\n")
+    if (pval.appr==TRUE){
+      cat("  Final Approximated p-value:", r1$pval.appr$repeated$pval, "\n")
+    }
+    if (pval.perm==TRUE){
+      cat("  Final p-value from", B, "permutations:", r1$pval.perm$repeated$pval, "\n")
+    }
+    
+  }
+  
+  
+  if (length(which(!is.na(match(c("ri","repeated_individual","all"),statistics))))>0){
+    cat("Repeated edge-count statistic: \n")
+    if(n0_us<=1){
+      cat("  Note: Starting index has been set to n0 = 2 as the repeated edge-count test statistic is not well-defined for t<2. \n")
+    }
+    if(n1_us>=n-1){
+      cat("  Note: Ending index has been set to n1 =", n-2, " as the repeated edge-count test statistic is not well-defined for t>",n-2,". \n")
+    }
+    
+    cat("  Estimated change-point location 1:", r1$scanZ$repeated$tauhat1, "\n")
+    cat("  Test statistic (Z_out,w):", r1$scanZ$repeated$Zowmax, "\n")
+    if (pval.appr==TRUE){
+      cat("  Approximated p-value 1:", r1$pval.appr$repind$pval1, "\n")
+    }
+    if (pval.perm==TRUE){
+      cat("  p-value 1 from", B, "permutations:", r1$pval.perm$repind$pval1, "\n")
+    }
+    
+    cat("  Estimated change-point location 2:", r1$scanZ$repeated$tauhat2, "\n")
+    cat("  Test statistic (T_out,d):", r1$scanZ$repeated$Todmax, "\n")
+    if (pval.appr==TRUE){
+      cat("  Approximated p-value 2:", r1$pval.appr$repind$pval2, "\n")
+    }
+    if (pval.perm==TRUE){
+      cat("  p-value 2 from", B, "permutations:", r1$pval.perm$repind$pval2, "\n")
+    }
+    
+    cat("  Estimated change-point location 3:", r1$scanZ$repeated$tauhat3, "\n")
+    cat("  Test statistic (T_in):", r1$scanZ$repeated$Tinmax, "\n")
+    if (pval.appr==TRUE){
+      cat("  Approximated p-value 3:", r1$pval.appr$repind$pval3, "\n")
+    }
+    if (pval.perm==TRUE){
+      cat("  p-value 3 from", B, "permutations:", r1$pval.perm$repind$pval3, "\n")
+    }
+  }
+  
+  
+  return(r1)
+}
+
+## the Nu function
+Nu = function(x){
+  y = x/2
+  (1/y)*(pnorm(y)-0.5)/(y*pnorm(y) + dnorm(y))
+}
+
+## gcp1bynode - single change-point
+gcp1bynode = function(n, l, Ebynode, statistics="all", n0=ceiling(0.05*n), n1=floor(0.95*n), alp=1.14, kap=1){
+  # "n" is the total number of nodes.
+  # "l" is the number of repeated measures.
+  # Ebynode[[i]] is the list of nodes that are connect to i by an edge.
+  # The nodes are numbered by their order in the sequence.
+  
+  Dmat <- matrix(0, nrow = n, ncol = n)
+  
+  for (i in seq_len(n)) {
+    neighbors <- Ebynode[[i]]
+    for (j in neighbors) {
+      Dmat[i, j] <- Dmat[i, j] + 1
+    }
+  }
+  
+  Duu <- diag(Dmat)
+  Du <- colSums(Dmat) - diag(Dmat)
+  Duv <- Dmat * (1 - diag(nrow(Dmat)))
+  nodedeg <- colSums(Dmat) + diag(Dmat)
+  
+  sum_Du2 <- sum(Du^2)
+  sum_Du_Duu <- sum(Du*Duu)
+  sum_Duv2 <- sum(Duv^2)
+  sum_Duu2 <- sum(Duu^2)
+  
+  G_in <- sum(Duu)
+  G_out <- sum(Duv)/2
+  
+  sumEisq = sum(nodedeg^2)
+  nE = sum(nodedeg)/2
+  
+  
+  g = rep(1,n)
+  R = rep(0,n)
+  R1 = rep(0,n)
+  R2 = rep(0,n)
+  Ro1 = rep(0,n)
+  Ro2 = rep(0,n)
+  Ri1 = rep(0,n)
+  Ri2 = rep(0,n)
+  
+  for(i in 1:n){
+    g[i] = 0  # update g=group
+    links = Ebynode[[i]]
+    
+    if(i==1){
+      if(length(links)>0){
+        R[i] = sum(rep(g[i],length(links)) != g[links])
+        Ri1[i] = sum(links == i)
+      } else {
+        R[i] = 0
+      }
+      R1[i] = Ri1[i]
+      Ro1[i] = R1[i] - Ri1[i]
+      R2[i] = nE-length(links)
+      Ri2[i] = G_in - Ri1[i]
+      Ro2[i] = R2[i] - Ri2[i]
+    } else {
+      if(length(links)>0){
+        add = sum(rep(g[i],length(links)) != g[links])
+        subin = sum(links == i)
+        subtract = length(links)-add-subin
+        R[i] = R[i-1]+add-subtract
+        Ri1[i] = Ri1[i-1]+subin
+        R1[i] = R1[i-1]+subtract+subin
+      } else {
+        R[i] = R[i-1]
+        Ri1[i] = R[i-1]
+        R1[i] = R1[i-1]
+      }
+      Ro1[i] = R1[i]-Ri1[i]
+      R2[i] = nE-R[i]-R1[i]
+      Ri2[i] = G_in - Ri1[i]
+      Ro2[i] = R2[i] - Ri2[i]
+    }
+    
+  }
+  
+  tt = 1:n
+  temp=n0:n1
+  
+  scanZ = list()
+  
+  if (length(which(!is.na(match(c("r", "repeated", "ri","repeated_individual","all"),statistics))))>0){
+    Rw = ((n-tt-1)*R1+(tt-1)*R2)/(n-2)
+    mu.Rw = nE*((n-tt-1)*tt*(tt-1)+(tt-1)*(n-tt)*(n-tt-1))/(n*(n-1)*(n-2))
+    
+    mu.R1 = nE*tt*(tt-1)/(n*(n-1))
+    mu.R2 = nE*(n-tt)*(n-tt-1)/(n*(n-1))
+    
+    v11 = mu.R1*(1-mu.R1) + 2*(0.5*sumEisq-nE)*(tt*(tt-1)*(tt-2))/(n*(n-1)*(n-2)) + (nE*(nE-1)-2*(0.5*sumEisq-nE))*(tt*(tt-1)*(tt-2)*(tt-3))/(n*(n-1)*(n-2)*(n-3))
+    v22 = mu.R2*(1-mu.R2) + 2*(0.5*sumEisq-nE)*((n-tt)*(n-tt-1)*(n-tt-2))/(n*(n-1)*(n-2)) + (nE*(nE-1)-2*(0.5*sumEisq-nE))*((n-tt)*(n-tt-1)*(n-tt-2)*(n-tt-3))/(n*(n-1)*(n-2)*(n-3))
+    
+    v12 = (nE*(nE-1)-2*(0.5*sumEisq-nE))*tt*(n-tt)*(tt-1)*(n-tt-1)/(n*(n-1)*(n-2)*(n-3)) - mu.R1*mu.R2
+    var.Rw=((n-tt-1)/(n-2))^2*v11 + 2*((n-tt-1)/(n-2))*((tt-1)/(n-2))*v12+((tt-1)/(n-2))^2*v22
+    Zw = -(mu.Rw-Rw)/sqrt(apply(cbind(var.Rw,rep(0,n)),1,max))
+    
+    
+    mu.Ro1 = G_out*(tt*(tt-1))/(n*(n-1))
+    mu.Ro2 = G_out*(n-tt)*(n-tt-1)/(n*(n-1))
+    mu.Ri1 = G_in*tt/n
+    
+    V1 = (tt*(tt-1)*(n-tt)*(n-tt-1)/(n*(n-1)*(n-2)*(n-3))) * ((1/2)*sum_Duv2 + ((tt-2)/(n-tt-1))*(sum_Du2-4*((G_out)^2)/n) - 2*((G_out)^2)/(n*(n-1)))
+    V2 = (tt*(tt-1)*(n-tt)*(n-tt-1)/(n*(n-1)*(n-2)*(n-3))) * ((1/2)*sum_Duv2 + ((n-tt-2)/(tt-1))*(sum_Du2-4*((G_out)^2)/n) - 2*((G_out)^2)/(n*(n-1)))
+    V3 = (tt*(n-tt)/(n*(n-1))) * (sum_Duu2 - ((G_in)^2)/n)
+    
+    C12 = (tt*(tt-1)*(n-tt)*(n-tt-1)/(n*(n-1)*(n-2)*(n-3))) * ((1/2)*sum_Duv2 - (sum_Du2-4*((G_out)^2)/n) - 2*((G_out)^2)/(n*(n-1)))
+    C13 = (tt*(n-tt)*(tt-1)/(n*(n-1)*(n-2))) * (sum_Du_Duu-2*G_in*G_out/n)
+    C23 = -(tt*(n-tt)*(n-tt-1)/(n*(n-1)*(n-2))) * (sum_Du_Duu-2*G_in*G_out/n)
+    
+    var.Row = ((n-tt-1)^2)*V1 + ((tt-1)^2)*V2 + 2*(n-tt-1)*(tt-1)*C12
+    
+    Zow = ((n-tt-1)*Ro1 + (tt-1)*Ro2 - (n-tt-1)*mu.Ro1 - (tt-1)*mu.Ro2)/sqrt(apply(cbind(var.Row,rep(0,n)),1,max))
+    Tod = abs((Ro1-Ro2 - (mu.Ro1-mu.Ro2))/sqrt(apply(cbind(V1 + V2 - 2*C12,rep(0,n)),1,max)))
+    Tin = abs((Ri1-mu.Ri1)/sqrt(apply(cbind(V3,rep(0,n)),1,max)))
+    
+    if (length(which(!is.na(match(c("ri","repeated_individual","all"),statistics))))>0){
+      tauhat1 = temp[which.max(Zow[n0:n1])]
+      tauhat2 = temp[which.max(Tod[n0:n1])]
+      tauhat3 = temp[which.max(Tin[n0:n1])]
+      repeated = list(tauhat1=tauhat1, tauhat2=tauhat2, tauhat3=tauhat3, Zowmax=Zow[tauhat1], Todmax=Tod[tauhat2], Tinmax=Tin[tauhat3], Zow=Zow, Tod=Tod, Tin=Tin)
+      scanZ$repeated = repeated
+      
+    }
+    if (length(which(!is.na(match(c("r", "repeated", "all"),statistics))))>0){
+      Mout = apply(cbind(Tod,kap*Zow),1,max)
+      M = apply(cbind(Tin,alp*Mout),1,max)
+      tauhat = temp[which.max(M[n0:n1])]
+      rmax = list(tauhat=tauhat, Zmax=M[tauhat], Zomax=Mout[tauhat], Zowmax=Zow[tauhat], Todmax=Tod[tauhat], Tinmax=Tin[tauhat], Zow=Zow, Tod=Tod, Tin=Tin, M=M, Mout=Mout, alp=alp, kap=kap)
+      scanZ$rmax = rmax
+    }
+  }
+  
+  return(scanZ)
+}
+
+
+
+## rho_one = n h_G
+rho_one = function(n, s, sumE, sumEisq){
+  f1 = 4*(n-1)*(2*s*(n-s)-n)
+  f2 = ((n+1)*(n-2*s)^2-2*n*(n-1))
+  f3 = 4*((n-2*s)^2-n)
+  f4 = 4*n*(s-1)*(n-1)*(n-s-1)
+  f5 = n*(n-1)*((n-2*s)^2-(n-2))
+  f6 = 4*((n-2)*(n-2*s)^2-2*s*(n-s)+n)
+  n*(n-1)*(f1*sumE + f2*sumEisq - f3*sumE^2)/(2*s*(n-s)*(f4*sumE + f5*sumEisq - f6*sumE^2))
+}
+rho_one_Rw = function(n, t){
+  -((2*t^2 - 2*n*t + n)*(n^2 - 3*n + 2)^4)/(2*t*(n - 1)^3*(n - 2)^4*(t - 1)*(n^2 - 2*n*t - n + t^2 + t))
+}
+
+
+## p-value approximation for single change-point, sub functions
+pval1_sub_1 = function(n,b,r,x,lower,upper){
+  if (b<1){        #b<0
+    return(1)
+  }
+  theta_b = rep(0,n-1)
+  pos = which(1+2*r*b>0)
+  theta_b[pos] = (sqrt((1+2*r*b)[pos])-1)/r[pos]
+  for(i in 1:length(theta_b[pos])){
+    if (is.na(theta_b[pos][i])==TRUE){
+      theta_b[pos][i]=0
+    }
+  }
+  ratio = exp((b-theta_b)^2/2 + r*theta_b^3/6)/sqrt(1+r*theta_b)
+  a = x*Nu(sqrt(2*b^2*x)) * ratio
+  
+  nn.l = ceiling(n/2)-length(which(1+2*r[1:ceiling(n/2)]*b>0))
+  nn.r = ceiling(n/2)-length(which(1+2*r[ceiling(n/2):(n-1)]*b>0))
+  if (nn.l>0.35*n || nn.r>0.35*n){
+    return(0)
+  }
+  if (nn.l>=lower){
+    neg = which(1+2*r[1:ceiling(n/2)]*b<=0)
+    dif = c(diff(neg),n/2-nn.l)
+    id1 = which.max(dif)
+    id2 = id1 + ceiling(0.03*n)
+    id3 = id2 + ceiling(0.09*n)
+    inc = (a[id3]-a[id2])/(id3-id2)
+    a[id2:1] = a[id2+1]-inc*(1:id2)
+  }
+  if (nn.r>=(n-upper)){
+    neg = which(1+2*r[ceiling(n/2):(n-1)]*b<=0 )
+    id1 = min(neg+ceiling(n/2)-1,ceiling(n/2)-1)
+    id2 = id1 - ceiling(0.03*n)
+    id3 = id2 - ceiling(0.09*n)
+    inc = (ratio[id3]-ratio[id2])/(id3-id2)
+    ratio[id2:(n-1)] = ratio[id2-1]+inc*((id2:(n-1))-id2)
+    ratio[ratio<0]=0
+    a[(n/2):(n-1)] = (x*Nu(sqrt(2*b^2*x)) * ratio)[(n/2):(n-1)] # update a after extrapolation 
+  }
+  neg2 = which(a<0)
+  a[neg2] = 0
+  integrand = function(s){
+    a[s]
+  }
+  result = try(2*dnorm(b)*b*integrate(integrand, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value, silent=T)
+  return(result)
+  
+}
+pval1_sub_2 = function(n,b,r,x,lower,upper){
+  if (b<1){        #b<0
+    return(1)
+  }
+  theta_b = rep(0,n-1)
+  pos = which(1+2*r*b>0)
+  theta_b[pos] = (sqrt((1+2*r*b)[pos])-1)/r[pos]
+  ratio = exp((b-theta_b)^2/2 + r*theta_b^3/6)/sqrt(1+r*theta_b)
+  a = x*Nu(sqrt(2*b^2*x)) * ratio
+  a_na = which(is.na(a)==TRUE )
+  a[a_na] = 0
+  nn = n-1-length(pos)
+  if (nn>0.75*n){
+    return(0)
+  }
+  if (nn>=(lower-1)+(n-upper)){
+    neg = which(1+2*r*b<=0)
+    dif = neg[2:nn]-neg[1:(nn-1)]
+    id1 = which.max(dif)
+    id2 = id1 + ceiling(0.03*n)
+    id3 = id2 + ceiling(0.09*n)
+    inc = (a[id3]-a[id2])/(id3-id2)
+    a[id2:1] = a[id2+1]-inc*(1:id2)
+    a[(n/2+1):n] = a[(n/2):1]
+    neg2 = which(a<0 | is.na(a)==TRUE)
+    a[neg2] = 0
+  }
+  integrand = function(s){
+    a[s]
+  }
+  result = try(dnorm(b)*b*integrate(integrand, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value, silent=T)
+  return(result)
+}
+
+
+## make edges_cnt from Ebynode
+edges_count <- function(Ebynode){
+  edge_list <- list()
+  
+  for (i in seq_along(Ebynode)) {
+    for (j in Ebynode[[i]]) {
+      if (i != j) {
+        a <- min(i, j)
+        b <- max(i, j)
+        edge_list <- append(edge_list, list(c(a, b)))
+      }
+    }
+  }
+  
+  edge_mat <- do.call(rbind, edge_list)
+  edge_df <- as.data.frame(edge_mat)
+  colnames(edge_df) <- c("V1", "V2")
+  
+  edges_cnt <- edge_df %>%
+    group_by(V1, V2) %>%
+    summarise(count = n()/2, .groups = "drop") %>%
+    as.matrix()
+  
+  colnames(edges_cnt) <- NULL
+  return(edges_cnt)
+}
+
+
+## p value approximation for single change-point
+pval1 = function(n, l, edges, Ebynode, scanZ, statistics="all", skew.corr=TRUE, lower=ceiling(0.05*n), upper=floor(0.95*n)){
+  
+  output = list()
+  
+  Dmat <- matrix(0, nrow = n, ncol = n)
+  for (i in seq_len(n)) {
+    neighbors <- Ebynode[[i]]
+    for (j in neighbors) {
+      Dmat[i, j] <- Dmat[i, j] + 1
+    }
+  }
+  
+  Duu <- diag(Dmat)
+  Du <- colSums(Dmat) - diag(Dmat)
+  Duv <- Dmat * (1 - diag(nrow(Dmat)))
+  deg <- colSums(Dmat) + diag(Dmat)
+  
+  sum_Du2 <- sum(Du^2)
+  sum_Du_Duu <- sum(Du*Duu)
+  sum_Duv2 <- sum(Duv^2)
+  sum_Duu2 <- sum(Duu^2)
+  
+  G_in <- sum(Duu)
+  G_out <- sum(Duv)/2
+  
+  sumEisq = sum(deg^2)
+  sumE = sum(deg)/2
+  
+  
+  
+  if (skew.corr==FALSE){
+    
+    if (length(which(!is.na(match(c("ri","repeated_individual","all"), statistics))))>0){
+      b1 = scanZ$repeated$Zowmax
+      if (b1>0){
+        integrandR1 = function(t){
+          x = rho_one_Rw(n,t)
+          x*Nu(sqrt(2*b1^2*x))
+        }
+        pval.repind1 = dnorm(b1)*b1*integrate(integrandR1, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value
+      }else{
+        pval.repind1 = 1
+      }
+      
+      b2 = scanZ$repeated$Todmax
+      if (b2>0){
+        integrandR2 = function(t){
+          x = n/(2*t*(n - t))
+          x*Nu(sqrt(2*b2^2*x))
+        }
+        pval.repind2 = 2*dnorm(b2)*b2*integrate(integrandR2, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value
+      }else{
+        pval.repind2 = 1
+      }
+      
+      b3 = scanZ$repeated$Tinmax
+      if (b3>0){
+        integrandR3 = function(t){
+          x = n/(2*t*(n - t))
+          x*Nu(sqrt(2*b3^2*x))
+        }
+        pval.repind3 = 2*dnorm(b3)*b3*integrate(integrandR3, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value
+      }else{
+        pval.repind3 = 1
+      }
+      pval1 = min(pval.repind1,1)
+      pval2 = min(pval.repind2,1)
+      pval3 = min(pval.repind3,1)
+      pvals = c(pval1, pval2, pval3)
+      
+      w <- rep(1/3, 3)
+      CCT_T <- sum(w * tan((0.5 - pmin(pvals, 0.9)) * pi))
+      pCCT <- 0.5 - (1/pi) * atan(CCT_T)
+      
+      out.repind = list(pval1 = pval1, pval2 = pval2, pval3 = pval3, pval = pCCT)
+      output$repind = out.repind
+    }
+    
+    if (length(which(!is.na(match(c("r","repeated","all"), statistics))))>0){
+      b1 = scanZ$rmax$Zowmax
+      if (b1>1){                      
+        integrandR1 = function(t){
+          x = rho_one_Rw(n,t)
+          x*Nu(sqrt(2*b1^2*x))
+        }
+        pval.repeated1 = dnorm(b1)*b1*integrate(integrandR1, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value
+      }else{
+        pval.repeated1 = 1
+      }
+      
+      b2 = scanZ$rmax$Todmax
+      if (b2>1){                      
+        integrandR2 = function(t){
+          x = n/(2*t*(n - t))
+          x*Nu(sqrt(2*b2^2*x))
+        }
+        pval.repeated2 = 2*dnorm(b2)*b2*integrate(integrandR2, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value
+      }else{
+        pval.repeated2 = 1
+      }
+      
+      b = scanZ$rmax$Zomax
+      kap = scanZ$rmax$kap
+      alp = scanZ$rmax$alp
+      if (b>1){
+        integrand1 = function(t){
+          x1 = n/(2*t*(n - t))
+          x1*Nu(sqrt(2*b^2*x1))
+        }
+        integrand2 = function(t){
+          x2 = rho_one_Rw(n,t)
+          x2*Nu(sqrt(2*b^2*x2))
+        }
+        pval_u1 = 2*dnorm(b/alp)*(b/alp)*integrate(integrand1, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value
+        pval_u2 = dnorm(b/(kap*alp))*(b/(kap*alp))*integrate(integrand2, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value
+        pval.rmout = as.numeric(1-(1-min(pval_u1,1))*(1-min(pval_u2,1)))
+      }else{
+        pval.rmout = 1
+      }
+      
+      
+      b3 = scanZ$rmax$Tinmax
+      if (b3>1){                      
+        integrandR3 = function(t){
+          x = n/(2*t*(n - t))
+          x*Nu(sqrt(2*b3^2*x))
+        }
+        pval.repeated3 = 2*dnorm(b3)*b3*integrate(integrandR3, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value
+      }else{
+        pval.repeated3 = 1
+      }
+      
+      pval1 = min(pval.repeated1,1)
+      pval2 = min(pval.repeated2,1)
+      pval3 = min(pval.repeated3,1)
+      pvalMout = min(pval.rmout,1)
+      
+      pvals = c(pvalMout, pval3)
+      
+      w <- rep(1/2, 2)
+      CCT_T <- sum(w * tan((0.5 - pmin(pvals, 0.9)) * pi))
+      pCCT <- 0.5 - (1/pi) * atan(CCT_T)
+      
+      out.repeated = list(pval1 = pval1, pval2 = pval2, pvalMout=pvalMout, pval3 = pval3, pval = pCCT)
+      output$repeated = out.repeated
+    }
+    
+    return(output)
+  }
+  
+  
+  
+  #skewness
+  edges_cnt <- edges_count(Ebynode)
+  
+  xo1 <- sum(Duv^2*(Du-Duv))
+  
+  xo2=0
+  for (i in 1:n){
+    selected_rows <- edges_cnt[edges_cnt[,1] == i | edges_cnt[,2] == i, ]
+    values <- selected_rows[, 3]
+    if (length(values) >= 3) {
+      xo2 = xo2 + 6*sum(apply(combn(values, 3), 2, prod))
+    }
+  }
+  
+  
+  xo4 <- sum(Duv*(Du-Duv)*(G_out-Du))
+  
+  xo3 = 0
+  xo5 = 0
+  for (i in 1:nrow(edges_cnt)){
+    j = edges_cnt[i,1]
+    k = edges_cnt[i,2]
+    s1 = sum(!(Ebynode[[j]] %in% c(j, k)))
+    s2 = sum(!(Ebynode[[k]] %in% c(j, k)))
+    xo3 = xo3 + 2*s1*s2*edges_cnt[i,3]
+    
+    ls <- setdiff(intersect(Ebynode[[j]], Ebynode[[k]]), c(j, k)) # j, k에 대하여, j, k 제외 (j,l), (k,l)이 있는 모든 l값
+    row1 = which((edges_cnt[,1] == j & edges_cnt[,2] == k) | (edges_cnt[,1] == k & edges_cnt[,2] == j))
+    row2 <- which((edges_cnt[,1] %in% ls & edges_cnt[,2] == k) | (edges_cnt[,1] == k & edges_cnt[,2] %in% ls))
+    row3 <- which((edges_cnt[,1] %in% ls & edges_cnt[,2] == j) | (edges_cnt[,1] == j & edges_cnt[,2] %in% ls))
+    xo5 = xo5 + 2*sum(edges_cnt[row1, 3]*edges_cnt[row2, 3]*edges_cnt[row3, 3])
+  }
+  
+  xo6 <- sum(Duv^2*(G_out-Du))
+  
+  xof <- (G_out^3  - ((sum(Duv^3)/2) + 3*xo1 + (3/2)*(xo6-xo1) + xo2 + (3*xo3-3*xo5) + xo5 + (3*xo4+3*xo5-6*xo3)) )
+  
+  
+  
+  
+  
+  if (length(which(!is.na(match(c("r","repeated","all"), statistics))))>0){
+    t = 1:(n-1)
+    Ao1 = (sum(Duv^3)/2)*t*(t-1)/(n*(n-1)) + 3*xo1*t*(t-1)*(t-2)/(n*(n-1)*(n-2)) + (3/2)*(xo6-xo1)*t*(t-1)*(t-2)*(t-3)/(n*(n-1)*(n-2)*(n-3))  + xo2*t*(t-1)*(t-2)*(t-3)/(n*(n-1)*(n-2)*(n-3)) + (3*xo3-3*xo5)*(t*(t-1)*(t-2)*(t-3))/(n*(n-1)*(n-2)*(n-3)) + xo5*(t*(t-1)*(t-2))/(n*(n-1)*(n-2)) + (3*xo4+3*xo5-6*xo3)*t*(t-1)*(t-2)*(t-3)*(t-4)/(n*(n-1)*(n-2)*(n-3)*(n-4)) + xof*t*(t-1)*(t-2)*(t-3)*(t-4)*(t-5)/(n*(n-1)*(n-2)*(n-3)*(n-4)*(n-5))
+    
+    Bo1 = (1/2)*(xo6-xo1)*(t*(t-1)*(n-t)*(n-t-1))/(n*(n-1)*(n-2)*(n-3)) + (xo4+xo5-2*xo3)*(t*(t-1)*(t-2)*(n-t)*(n-t-1))/(n*(n-1)*(n-2)*(n-3)*(n-4)) + xof*t*(t-1)*(t-2)*(t-3)*(n-t)*(n-t-1)/(n*(n-1)*(n-2)*(n-3)*(n-4)*(n-5))
+    
+    Co1 = (1/2)*(xo6-xo1)*(n-t)*(n-t-1)*t*(t-1)/(n*(n-1)*(n-2)*(n-3)) + (xo4+xo5-2*xo3)*(n-t)*(n-t-1)*(n-t-2)*t*(t-1)/(n*(n-1)*(n-2)*(n-3)*(n-4)) + xof*t*(t-1)*(n-t)*(n-t-1)*(n-t-2)*(n-t-3)/(n*(n-1)*(n-2)*(n-3)*(n-4)*(n-5))
+    
+    Do1 = (sum(Duv^3)/2)*(n-t)*(n-t-1)/(n*(n-1)) + 3*xo1*(n-t)*(n-t-1)*(n-t-2)/(n*(n-1)*(n-2)) + (3/2)*(xo6-xo1)*(n-t)*(n-t-1)*(n-t-2)*(n-t-3)/(n*(n-1)*(n-2)*(n-3))  + xo2*(n-t)*(n-t-1)*(n-t-2)*(n-t-3)/(n*(n-1)*(n-2)*(n-3)) + (3*xo3 - 3*xo5) *((n-t)*(n-t-1)*(n-t-2)*(n-t-3))/(n*(n-1)*(n-2)*(n-3)) + xo5*((n-t)*(n-t-1)*(n-t-2))/(n*(n-1)*(n-2)) + (3*xo4+3*xo5-6*xo3)*(n-t)*(n-t-1)*(n-t-2)*(n-t-3)*(n-t-4)/(n*(n-1)*(n-2)*(n-3)*(n-4)) + xof*(n-t)*(n-t-1)*(n-t-2)*(n-t-3)*(n-t-4)*(n-t-5)/(n*(n-1)*(n-2)*(n-3)*(n-4)*(n-5))
+    
+    xi1 = sum(Duu)*sum(Duu^2) - sum(Duu^3)
+    Ai1 = sum(Duu^3)*t/n + 3*xi1*t*(t-1)/(n*(n-1)) + (G_in^3 - 3*xi1 - sum(Duu^3))*t*(t-1)*(t-2)/(n*(n-1)*(n-2))
+    
+    
+    E1 = G_out*t*(t-1)/(n*(n-1))
+    E2 = G_out*(n-t)*(n-t-1)/(n*(n-1))
+    E3 = G_in*t/n
+    
+    V1 = (t*(t-1)*(n-t)*(n-t-1)/(n*(n-1)*(n-2)*(n-3))) * ((1/2)*sum_Duv2 + ((t-2)/(n-t-1))*(sum_Du2-4*((G_out)^2)/n) - 2*((G_out)^2)/(n*(n-1)))
+    V2 = (t*(t-1)*(n-t)*(n-t-1)/(n*(n-1)*(n-2)*(n-3))) * ((1/2)*sum_Duv2 + ((n-t-2)/(t-1))*(sum_Du2-4*((G_out)^2)/n) - 2*((G_out)^2)/(n*(n-1)))
+    V3 = (t*(n-t)/(n*(n-1))) * (sum_Duu2 - ((G_in)^2)/n)
+    
+    C12 = (t*(t-1)*(n-t)*(n-t-1)/(n*(n-1)*(n-2)*(n-3))) * ((1/2)*sum_Duv2 - (sum_Du2-4*((G_out)^2)/n) - 2*((G_out)^2)/(n*(n-1)))
+    C13 = (t*(n-t)*(t-1)/(n*(n-1)*(n-2))) * (sum_Du_Duu-2*G_in*G_out/n)
+    C23 = -(t*(n-t)*(n-t-1)/(n*(n-1)*(n-2))) * (sum_Du_Duu-2*G_in*G_out/n)
+    
+    x1 = rho_one_Rw(n,t)
+    
+    q1=(n-t-1)/(n-2)
+    p1=(t-1)/(n-2)
+    
+    mu1 = q1*E1 + p1*E2
+    sig11 = q1^2*V1 + p1^2*V2 + 2*q1*p1*C12
+    sig1 = sqrt(sig11)
+    ER31 = q1^3*Ao1 + 3*q1^2*p1*Bo1 + 3*q1*p1^2*Co1 + p1^3*Do1
+    r1 =  (ER31- 3*mu1*sig1^2 - mu1^3)/sig1^3
+    br1 = scanZ$rmax$Zowmax
+    result.ur_ow = pval1_sub_2(n,br1,r1,x1,lower,upper)
+    
+    r.Rw = r1
+    x.Rw = x1
+    
+    
+    x2 = n/(2*t*(n - t))
+    
+    q2=1
+    p2=-1
+    
+    mu2 = q2*E1 + p2*E2
+    sig12 = q2^2*V1 + p2^2*V2 + 2*q2*p2*C12
+    sig2 = sqrt(sig12)
+    ER32 = q2^3*Ao1 + 3*q2^2*p2*Bo1 + 3*q2*p2^2*Co1 + p2^3*Do1
+    r2 =  (ER32- 3*mu2*sig2^2 - mu2^3)/sig2^3
+    br2 = scanZ$rmax$Todmax
+    result.ur_od = pval1_sub_1(n,br2,r2,x2,lower,upper)
+    
+    r.Rd = r2
+    x.Rd = x2
+    
+    
+    x3 = n/(2*t*(n - t))
+    r3 = (Ai1 - 3*E3*V3 - E3^3)/V3^(3/2)
+    br3 = scanZ$rmax$Tinmax
+    result.ur_in = pval1_sub_1(n,br3,r3,x3,lower,upper)
+    
+    r.Ri = r3
+    x.Ri = x3
+    
+    
+    br = scanZ$rmax$Zomax
+    kap = scanZ$rmax$kap
+    alp = scanZ$rmax$alp
+    
+    result.ur1 = pval1_sub_1(n,(br/alp),r2,x2,lower,upper)        #Tod
+    result.ur2 = pval1_sub_2(n,(br/(kap*alp)),r1,x1,lower,upper)  #Zow
+    
+    
+    
+    if (length(which(!is.na(match(c("r","repeated","all"), statistics))))>0){
+      if (is.numeric(result.ur_ow) && result.ur_ow > 0){
+        pval.repeated1 = min(result.ur_ow,1)
+      }else{
+        if (result.ur_ow ==0){
+          cat("Extrapolation for skewness-corrected p-value approximation (out, weighted) could not be performed. \n")
+        }
+        cat("Repeated edge-count statistic: p-value approximation (out, weighted) without skewness correction is reported.\n")
+        b = scanZ$rmax$Zowmax
+        if (b>1){
+          integrandW = function(t){
+            x = rho_one_Rw(n,t)
+            x*Nu(sqrt(2*b^2*x))
+          }
+          pval.repeated1 = dnorm(b)*b*integrate(integrandW, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value
+        }else{
+          pval.repeated1 = 1
+        }
+      }
+      
+      if (is.numeric(result.ur_od) && result.ur_od > 0){
+        pval.repeated2 = min(result.ur_od,1)
+      }else{
+        if (result.ur_od ==0){
+          cat("Extrapolation for skewness-corrected p-value approximation (out, diff) could not be performed. \n")
+        }
+        cat("Repeated edge-count statistic: p-value approximation (out, diff) without skewness correction is reported.\n")
+        b = scanZ$rmax$Todmax
+        if (b>1){
+          integrandW = function(t){
+            x = n/(2*t*(n - t))
+            x*Nu(sqrt(2*b^2*x))
+          }
+          pval.repeated2 = 2*dnorm(b)*b*integrate(integrandW, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value
+          
+        }else{
+          pval.repeated2 = 1
+        }
+      }
+      
+      if (is.numeric(result.ur1) && is.numeric(result.ur2) && result.ur1 > 0 && result.ur2 > 0){
+        pval.rmout = 1-(1-min(result.ur1,1))*(1-min(result.ur2,1))
+      }else{
+        if(result.ur1 ==0 || result.ur2 == 0){
+          cat("Extrapolation for skewness-corrected p-value approximation could not be performed. \n")
+        }
+        cat("Max-type (out) edge-count statistic: p-value approximation without skewness correction is reported.\n")
+        br = scanZ$rmax$Zomax
+        if (br>1){
+          integrand1 = function(t){
+            x1 = n/(2*t*(n - t))
+            x1*Nu(sqrt(2*br^2*x1))
+          }
+          integrand2 = function(t){
+            x2 = rho_one_Rw(n,t)
+            x2*Nu(sqrt(2*br^2*x2))
+          }
+          pval_ur1 = 2*dnorm(br/alp)*(br/alp)*integrate(integrand1, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value
+          pval_ur2 = dnorm(br/(kap*alp))*(br/(kap*alp))*integrate(integrand2, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value
+          pval.rmout = as.numeric(1-(1-min(pval_ur1,1))*(1-min(pval_ur2,1)))
+        }else{
+          pval.rmout = 1
+        }
+      }
+      
+      if (is.numeric(result.ur_in) && result.ur_in > 0){
+        pval.repeated3 = min(result.ur_in,1)
+      }else{
+        if (result.ur_in ==0){
+          cat("Extrapolation for skewness-corrected p-value approximation (in) could not be performed. \n")
+        }
+        cat("Repeated edge-count statistic: p-value approximation (in) without skewness correction is reported.\n")
+        b = scanZ$rmax$Tinmax
+        if (b>1){
+          integrandW = function(t){
+            x = n/(2*t*(n - t))
+            x*Nu(sqrt(2*b^2*x))
+          }
+          pval.repeated3 = 2*dnorm(b)*b*integrate(integrandW, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value
+        }else{
+          pval.repeated3 = 1
+        }
+      }
+      
+      
+      pval1 = min(pval.repeated1,1)
+      pval2 = min(pval.repeated2,1)
+      pval3 = min(pval.repeated3,1)
+      pvalMout = min(pval.rmout,1)
+      
+      pvals = c(pvalMout, pval3)
+      w <- rep(1/2, 2)
+      CCT_T <- sum(w * tan((0.5 - pmin(pvals, 0.9)) * pi))
+      pCCT <- 0.5 - (1/pi) * atan(CCT_T)
+      
+      output$repeated = list(pval1 = pval1, pval2 = pval2, pvalMout=pvalMout, pval3 = pval3, pval = pCCT)
+      
+    }
+  }
+  
+  
+  
+  
+  if (length(which(!is.na(match(c("ri","repeated_individual","all"), statistics))))>0){
+    t = 1:(n-1)
+    
+    Ao1 = (sum(Duv^3)/2)*t*(t-1)/(n*(n-1)) + 3*xo1*t*(t-1)*(t-2)/(n*(n-1)*(n-2)) + (3/2)*(xo6-xo1)*t*(t-1)*(t-2)*(t-3)/(n*(n-1)*(n-2)*(n-3))  + xo2*t*(t-1)*(t-2)*(t-3)/(n*(n-1)*(n-2)*(n-3)) + (3*xo3-3*xo5)*(t*(t-1)*(t-2)*(t-3))/(n*(n-1)*(n-2)*(n-3)) + xo5*(t*(t-1)*(t-2))/(n*(n-1)*(n-2)) + (3*xo4+3*xo5-6*xo3)*t*(t-1)*(t-2)*(t-3)*(t-4)/(n*(n-1)*(n-2)*(n-3)*(n-4)) + xof*t*(t-1)*(t-2)*(t-3)*(t-4)*(t-5)/(n*(n-1)*(n-2)*(n-3)*(n-4)*(n-5))
+    
+    Bo1 = (1/2)*(xo6-xo1)*(t*(t-1)*(n-t)*(n-t-1))/(n*(n-1)*(n-2)*(n-3)) + (xo4+xo5-2*xo3)*(t*(t-1)*(t-2)*(n-t)*(n-t-1))/(n*(n-1)*(n-2)*(n-3)*(n-4)) + xof*t*(t-1)*(t-2)*(t-3)*(n-t)*(n-t-1)/(n*(n-1)*(n-2)*(n-3)*(n-4)*(n-5))
+    
+    Co1 = (1/2)*(xo6-xo1)*(n-t)*(n-t-1)*t*(t-1)/(n*(n-1)*(n-2)*(n-3)) + (xo4+xo5-2*xo3)*(n-t)*(n-t-1)*(n-t-2)*t*(t-1)/(n*(n-1)*(n-2)*(n-3)*(n-4)) + xof*t*(t-1)*(n-t)*(n-t-1)*(n-t-2)*(n-t-3)/(n*(n-1)*(n-2)*(n-3)*(n-4)*(n-5))
+    
+    Do1 = (sum(Duv^3)/2)*(n-t)*(n-t-1)/(n*(n-1)) + 3*xo1*(n-t)*(n-t-1)*(n-t-2)/(n*(n-1)*(n-2)) + (3/2)*(xo6-xo1)*(n-t)*(n-t-1)*(n-t-2)*(n-t-3)/(n*(n-1)*(n-2)*(n-3))  + xo2*(n-t)*(n-t-1)*(n-t-2)*(n-t-3)/(n*(n-1)*(n-2)*(n-3)) + (3*xo3 - 3*xo5) *((n-t)*(n-t-1)*(n-t-2)*(n-t-3))/(n*(n-1)*(n-2)*(n-3)) + xo5*((n-t)*(n-t-1)*(n-t-2))/(n*(n-1)*(n-2)) + (3*xo4+3*xo5-6*xo3)*(n-t)*(n-t-1)*(n-t-2)*(n-t-3)*(n-t-4)/(n*(n-1)*(n-2)*(n-3)*(n-4)) + xof*(n-t)*(n-t-1)*(n-t-2)*(n-t-3)*(n-t-4)*(n-t-5)/(n*(n-1)*(n-2)*(n-3)*(n-4)*(n-5))
+    
+    
+    xi1 = sum(Duu)*sum(Duu^2) - sum(Duu^3)
+    Ai1 = sum(Duu^3)*t/n + 3*xi1*t*(t-1)/(n*(n-1)) + (G_in^3 - 3*xi1 - sum(Duu^3))*t*(t-1)*(t-2)/(n*(n-1)*(n-2))
+    
+    
+    E1 = G_out*t*(t-1)/(n*(n-1))
+    E2 = G_out*(n-t)*(n-t-1)/(n*(n-1))
+    E3 = G_in*t/n
+    
+    V1 = (t*(t-1)*(n-t)*(n-t-1)/(n*(n-1)*(n-2)*(n-3))) * ((1/2)*sum_Duv2 + ((t-2)/(n-t-1))*(sum_Du2-4*((G_out)^2)/n) - 2*((G_out)^2)/(n*(n-1)))
+    V2 = (t*(t-1)*(n-t)*(n-t-1)/(n*(n-1)*(n-2)*(n-3))) * ((1/2)*sum_Duv2 + ((n-t-2)/(t-1))*(sum_Du2-4*((G_out)^2)/n) - 2*((G_out)^2)/(n*(n-1)))
+    V3 = (t*(n-t)/(n*(n-1))) * (sum_Duu2 - ((G_in)^2)/n)
+    
+    C12 = (t*(t-1)*(n-t)*(n-t-1)/(n*(n-1)*(n-2)*(n-3))) * ((1/2)*sum_Duv2 - (sum_Du2-4*((G_out)^2)/n) - 2*((G_out)^2)/(n*(n-1)))
+    C13 = (t*(n-t)*(t-1)/(n*(n-1)*(n-2))) * (sum_Du_Duu-2*G_in*G_out/n)
+    C23 = -(t*(n-t)*(n-t-1)/(n*(n-1)*(n-2))) * (sum_Du_Duu-2*G_in*G_out/n)
+    
+    x1 = rho_one_Rw(n,t)
+    
+    q1=(n-t-1)/(n-2)
+    p1=(t-1)/(n-2)
+    
+    mu1 = q1*E1 + p1*E2
+    sig11 = q1^2*V1 + p1^2*V2 + 2*q1*p1*C12
+    sig1 = sqrt(sig11)
+    ER31 = q1^3*Ao1 + 3*q1^2*p1*Bo1 + 3*q1*p1^2*Co1 + p1^3*Do1
+    r1 =  (ER31- 3*mu1*sig1^2 - mu1^3)/sig1^3
+    
+    b1 = scanZ$repeated$Zowmax
+    result.u2_ow = pval1_sub_2(n,b1,r1,x1,lower,upper)
+    r.Rw = r1
+    x.Rw = x1
+    
+    
+    x2 = n/(2*t*(n - t))
+    
+    q2=1
+    p2=-1
+    
+    mu2 = q2*E1 + p2*E2
+    sig12 = q2^2*V1 + p2^2*V2 + 2*q2*p2*C12
+    sig2 = sqrt(sig12)
+    ER32 = q2^3*Ao1 + 3*q2^2*p2*Bo1 + 3*q2*p2^2*Co1 + p2^3*Do1
+    r2 =  (ER32- 3*mu2*sig2^2 - mu2^3)/sig2^3
+    
+    b2 = scanZ$repeated$Todmax
+    result.u2_od = pval1_sub_1(n,b2,r2,x2,lower,upper)
+    r.Rd = r2
+    x.Rd = x2
+    
+    
+    x3 = n/(2*t*(n - t))
+    r3 = (Ai1 - 3*E3*V3 - E3^3)/V3^(3/2)
+    b3 = scanZ$repeated$Tinmax
+    result.u2_in = pval1_sub_1(n,b3,r3,x3,lower,upper)
+    r.Ri = r3
+    x.Ri = x3
+    
+    
+    if (length(which(!is.na(match(c("ri","repeated_individual","all"), statistics))))>0){
+      if (is.numeric(result.u2_ow) && result.u2_ow > 0){
+        pval.repind1 = min(result.u2_ow,1)
+      }else{
+        if (result.u2_ow ==0){
+          cat("Extrapolation for skewness-corrected p-value approximation (out, weighted) could not be performed. \n")
+        }
+        cat("Repeated edge-count statistic: p-value approximation (out, weighted) without skewness correction is reported.\n")
+        b = scanZ$repeated$Zowmax
+        if (b>0){
+          integrandW = function(t){
+            x = rho_one_Rw(n,t)
+            x*Nu(sqrt(2*b^2*x))
+          }
+          pval.repind1 = dnorm(b)*b*integrate(integrandW, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value
+        }else{
+          pval.repind1 = 1
+        }
+      }
+      
+      if (is.numeric(result.u2_od) && result.u2_od > 0){
+        pval.repind2 = min(result.u2_od,1)
+      }else{
+        if (result.u2_od ==0){
+          cat("Extrapolation for skewness-corrected p-value approximation (out, diff) could not be performed. \n")
+        }
+        cat("Repeated edge-count statistic: p-value approximation (out, diff) without skewness correction is reported.\n")
+        b = scanZ$repeated$Todmax
+        if (b>0){
+          integrandW = function(t){
+            x = n/(2*t*(n - t))
+            x*Nu(sqrt(2*b^2*x))
+          }
+          pval.repind2 = 2*dnorm(b)*b*integrate(integrandW, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value
+          
+        }else{
+          pval.repind2 = 1
+        }
+      }
+      
+      if (is.numeric(result.u2_in) && result.u2_in > 0){
+        pval.repind3 = min(result.u2_in,1)
+      }else{
+        if (result.u2_in ==0){
+          cat("Extrapolation for skewness-corrected p-value approximation (in) could not be performed. \n")
+        }
+        cat("Repeated edge-count statistic: p-value approximation (in) without skewness correction is reported.\n")
+        b = scanZ$repeated$Tinmax
+        if (b>0){
+          integrandW = function(t){
+            x = n/(2*t*(n - t))
+            x*Nu(sqrt(2*b^2*x))
+          }
+          pval.repind3 = 2*dnorm(b)*b*integrate(integrandW, lower, upper, subdivisions=3000, stop.on.error=FALSE)$value
+        }else{
+          pval.repind3 = 1
+        }
+      }
+      
+      pval1 = min(pval.repind1,1)
+      pval2 = min(pval.repind2,1)
+      pval3 = min(pval.repind3,1)
+      pvals = c(pval1, pval2, pval3)
+      
+      w <- rep(1/3, 3)
+      CCT_T <- sum(w * tan((0.5 - pmin(pvals, 0.9)) * pi))
+      pCCT <- 0.5 - (1/pi) * atan(CCT_T)
+      output$repind = list(pval1 = pval1, pval2 = pval2, pval3 = pval3, pval = pCCT)
+      
+    }
+  }
+  
+  return(output)
+}
+
+## p value from permutation for single change point
+permpval1 = function(n, l, Ebynode, scanZ, statistics="all", B, n0=ceiling(0.05*n), n1=floor(0.95*n), alp=alp, kap=kap){
+  
+  Z1.repind = Z2.repind = Z3.repind = Z1.repeated = Z2.repeated = Z3.repeated = Zmout.repeated = Zmax.repeated = matrix(0,B,n)
+  for(b in 1:B){
+    if(b%%1000 ==0) {
+      cat(b, "permutations completed.\n")
+    }
+    perm = sample(n)
+    permmatch = rep(0,n)
+    for(i in 1:n) permmatch[perm[i]] = i
+    Ebnstar =  vector("list", n)
+    for(i in 1:n){
+      oldlinks = Ebynode[[permmatch[i]]]
+      Ebnstar[[i]] = perm[oldlinks]
+    }
+    
+    
+    gcpstar=gcp1bynode(n,l,Ebnstar,statistics,n0,n1,alp=alp,kap=kap)
+    
+    if (length(which(!is.na(match(c("ri","repeated_individual","all"), statistics))))>0){
+      Z1.repind[b,] = gcpstar$repeated$Zow
+      Z2.repind[b,] = gcpstar$repeated$Tod
+      Z3.repind[b,] = gcpstar$repeated$Tin
+    }
+    
+    if (length(which(!is.na(match(c("r","repeated","all"), statistics))))>0){
+      Z1.repeated[b,] = gcpstar$rmax$Zow
+      Z2.repeated[b,] = gcpstar$rmax$Tod
+      Z3.repeated[b,] = gcpstar$rmax$Tin
+      Zmout.repeated[b,] = gcpstar$rmax$Mout
+      Zmax.repeated[b,] = gcpstar$rmax$M
+    }
+    
+  }
+  
+  output = list()
+  p=1-(0:(B-1))/B
+  
+  
+  if (length(which(!is.na(match(c("ri","repeated_individual","all"), statistics))))>0){
+    maxZ1 = apply(Z1.repind[,n0:n1],1,max)
+    maxZ1s = sort(maxZ1)
+    maxZ2 = apply(Z2.repind[,n0:n1],1,max)
+    maxZ2s = sort(maxZ2)
+    maxZ3 = apply(Z3.repind[,n0:n1],1,max)
+    maxZ3s = sort(maxZ3)
+    
+    pval1 = length(which(maxZ1s>=scanZ$repeated$Zowmax))/B
+    pval2 = length(which(maxZ2s>=scanZ$repeated$Todmax))/B
+    pval3 = length(which(maxZ3s>=scanZ$repeated$Tinmax))/B
+    
+    pvals = c(pval1, pval2, pval3)
+    w <- rep(1/3, 3)
+    CCT_T <- sum(w * tan((0.5 - pmin(pvals, 0.9)) * pi))
+    pCCT <- 0.5 - (1/pi) * atan(CCT_T)
+    
+    output$repind = list(pval1=pval1, pval2=pval2, pval3=pval3, pval=pCCT, curve1=cbind(maxZ1s,p), curve2=cbind(maxZ2s,p), curve3=cbind(maxZ3s,p),
+                         maxZ1s=maxZ1s, maxZ2s=maxZ2s, maxZ3s=maxZ3s, Z1=Z1.repind, Z2=Z2.repind, Z3=Z3.repind)
+  }
+  
+  if (length(which(!is.na(match(c("r","repeated","all"), statistics))))>0){
+    maxZ1 = apply(Z1.repeated[,n0:n1],1,max)
+    maxZ1s = sort(maxZ1)
+    maxZ2 = apply(Z2.repeated[,n0:n1],1,max)
+    maxZ2s = sort(maxZ2)
+    maxZ3 = apply(Z3.repeated[,n0:n1],1,max)
+    maxZ3s = sort(maxZ3)
+    
+    maxZout = apply(Zmout.repeated[,n0:n1],1,max)
+    maxZouts = sort(maxZout)
+    
+    
+    pval1 = length(which(maxZ1s>=scanZ$rmax$Zowmax))/B
+    pval2 = length(which(maxZ2s>=scanZ$rmax$Todmax))/B
+    pval3 = length(which(maxZ3s>=scanZ$rmax$Tinmax))/B
+    pvalMout = length(which(maxZouts>=(scanZ$rmax$Zomax/scanZ$rmax$alp)))/B
+    
+    pvals = c(pvalMout, pval3)
+    w <- rep(1/2, 2)
+    CCT_T <- sum(w * tan((0.5 - pmin(pvals, 0.9)) * pi))
+    pCCT <- 0.5 - (1/pi) * atan(CCT_T)
+    
+    output$repeated = list(pval1=pval1, pval2=pval2, pvalMout=pvalMout, pval3=pval3, pval=pCCT,
+                           maxZ1s=maxZ1s, maxZ2s=maxZ2s, maxZ3s=maxZ3s, maxZouts=maxZouts, Z1=Z1.repeated, Z2=Z2.repeated, Z3=Z3.repeated, Zmout=Zmout.repeated)
+  }
+  
+  
+  return(output)
+}
+
+
+
+euclidean_kmst_edges <- function(tau, n, l, p,
+                                 rho1, beta1, epsilon1, nu11, nu12,
+                                 rho2, beta2, epsilon2, nu21, nu22,
+                                 sigma, k = 9, seed = 16) {
+  
+  set.seed(seed)
+  
+  generate_mat <- function(beta, epsilon, nu1, nu2, rho, l, p, sigma) {
+    within_subject <- diag(1 - rho, l) + matrix(rho, nrow = l, ncol = l)
+    covariance_matrix <- kronecker(within_subject, diag(p)) * sigma^2
+    
+    ak <- mvrnorm(n = 1, mu = beta, Sigma = diag(epsilon^2, p))
+    mean_vector <- rep(ak, l)
+    theta <- mvrnorm(n = 1, mu = mean_vector, Sigma = covariance_matrix)
+    omega_u <- runif(1, nu1, nu2)
+    Z <- mvrnorm(n = 1, mu = theta, Sigma = (omega_u^2) * diag(l*p))
+    Z_mat <- matrix(Z, nrow = l, ncol = p, byrow = TRUE)
+    return(Z_mat)
+  }
+  
+  generate_n_mat <- function(n, beta, epsilon, nu1, nu2, rho, l, p, sigma){
+    result_mat <- matrix(nrow = 0, ncol = p)
+    for (i in 1:n) {
+      mat <- generate_mat(beta, epsilon, nu1, nu2, rho, l, p, sigma)
+      result_mat <- rbind(result_mat, mat)
+    }
+    return(result_mat)
+  }
+  
+  find_index_row <- function(k, ncol = l) {
+    row <- ((k - 1) %/% ncol) + 1
+    return(row)
+  }
+  
+  # generate data matrix and its graph
+  group1_matrix <- generate_n_mat(tau, beta1, epsilon1, nu11, nu12, rho1, l, p, sigma)
+  group2_matrix <- generate_n_mat(n - tau, beta2, epsilon2, nu21, nu22, rho2, l, p, sigma)
+  group_matrix <- rbind(group1_matrix, group2_matrix)
+  
+  distance_matrix <- as.matrix(dist(group_matrix))
+  kmst_matrix <- ade4::mstree(as.dist(distance_matrix), ngmax=k)
+  edges <- array(sapply(kmst_matrix, find_index_row), dim = c(nrow(kmst_matrix), 2))
+  edges <- edges[order(edges[,1], edges[,2]), ]
+  
+  return(edges)
+}
+
+
+
+
+
+#Parameters
+tau <- 50  
+n <- 100  # num of individuals
+l <- 5    # repeated times
+p <- 30   # dimension
+
+# group 1
+rho1 <- 0
+beta1 <- rep(0, p)
+epsilon1 <- 1
+nu11 <- 1
+nu12 <- 1.1
+
+# group 2
+rho2 <- 0
+beta2 <- rep(0, p)
+epsilon2 <- 1
+nu21 <- 1
+nu22 <- 1.2
+
+# common
+sigma <- 1
+
+
+edges<- euclidean_kmst_edges(tau, n, l, p,
+                             rho1, beta1, epsilon1, nu11, nu12,
+                             rho2, beta2, epsilon2, nu21, nu22,
+                             sigma, k=9, seed = 16)
+
+res = gseg1_repeated(n, l, edges, statistics=c("r","ri"), n0=0.1*n, n1=0.9*n, pval.appr=FALSE, skew.corr=FALSE, pval.perm=TRUE, B=1000, alp=1, kap=1)
+
+
+
