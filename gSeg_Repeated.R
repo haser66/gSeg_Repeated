@@ -541,7 +541,7 @@ pval1 = function(n, l, edges, Ebynode, scanZ, statistics="all", skew.corr=TRUE, 
   
   xo2=0
   for (i in 1:n){
-    selected_rows <- edges_cnt[edges_cnt[,1] == i | edges_cnt[,2] == i, ]
+    selected_rows <- edges_cnt[edges_cnt[,1] == i | edges_cnt[,2] == i, , drop=FALSE]
     values <- selected_rows[, 3]
     if (length(values) >= 3) {
       xo2 = xo2 + 6*sum(apply(combn(values, 3), 2, prod))
@@ -1075,6 +1075,7 @@ edges<- euclidean_kmst_edges(tau, n, l, p,
                              sigma, k=9, seed = 16)
 
 res = gseg1_repeated(n, l, edges, statistics=c("r","ri"), n0=0.1*n, n1=0.9*n, pval.appr=FALSE, skew.corr=FALSE, pval.perm=TRUE, B=1000, alp=1, kap=1)
+
 
 
 
