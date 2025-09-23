@@ -1,7 +1,7 @@
 Change-Point Detection With Multivariate Repeated Measures
 ================
 
-`gSeg1_repeated()` implements a graph-based change-point detection
+`gseg1_repeated()` implements a graph-based change-point detection
 method for multivariate repeated measures data. It returns a single
 estimated change-point $\tau$ and its associated p-value. If the p-value
 is greater than the significance level, no change-point is detected;
@@ -18,11 +18,11 @@ Specifically,
   are integrated into the max-type statistic to achieve sensitivity to
   both between-individual and within-individual shifts.
 
-Although `gSeg1_repeated()` estimates a single change-point, multiple
+Although `gseg1_repeated()` estimates a single change-point, multiple
 change-points can be identified by recursively applying the procedure in
 a binary segmentation framework.
 
-This repository provides the R function `gSeg1_repeated()` for
+This repository provides the R function `gseg1_repeated()` for
 change-point detection with multivariate repeated measures. The function
 can be sourced directly and used without installing a package.
 
@@ -149,7 +149,7 @@ edges <- generate_kMST_edges(tau, n, l, p,
 
 ## Result
 
-Run the function `gSeg1_repeated()` with both permutation and
+Run the function `gseg1_repeated()` with both permutation and
 approximation:
 
 ``` r
@@ -223,4 +223,5 @@ detection. The Annals of Statistics, 43(1), 139-176.
 <https://doi.org/10.1214/14-AOS1269>
 
 `gSeg` associated with this paper served as a reference for developing
-`gSeg1_repeated()`.
+`gseg1_repeated()`.
+
