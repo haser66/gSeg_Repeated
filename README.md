@@ -1,7 +1,7 @@
 Change-Point Detection With Multivariate Repeated Measures
 ================
 
-`gseg1_repeated()` implements a graph-based change-point detection
+`gSeg1_repeated()` implements a graph-based change-point detection
 method for multivariate repeated measures data. It returns a single
 estimated change-point $\tau$ and its associated p-value. If the p-value
 is greater than the significance level, no change-point is detected;
@@ -18,16 +18,16 @@ Specifically,
   are integrated into the max-type statistic to achieve sensitivity to
   both between-individual and within-individual shifts.
 
-Although `gseg1_repeated()` estimates a single change-point, multiple
+Although `gSeg1_repeated()` estimates a single change-point, multiple
 change-points can be identified by recursively applying the procedure in
 a binary segmentation framework.
 
-This repository provides the R function `gseg1_repeated()` for
+This repository provides the R function `gSeg1_repeated()` for
 change-point detection with multivariate repeated measures. The function
 can be sourced directly and used without installing a package.
 
 ## Packages
-`gseg1_repeated()` requires the `dplyr` package for internal data handling.
+`gSeg1_repeated()` requires the `dplyr` package for internal data handling.
 
 For the example code, the `MASS` package is used to generate data via `mvrnorm()`, and the `ade4` package is used to construct k-MST edges with the `mstree()` function.
 Users may generate data and edges by other methods if preferred.
@@ -157,12 +157,12 @@ edges <- generate_kMST_edges(tau, n, l, p,
 
 ## Result
 
-Run the function `gseg1_repeated()` with both permutation and
+Run the function `gSeg1_repeated()` with both permutation and
 approximation:
 
 ``` r
 set.seed(16)
-res = gseg1_repeated(n, l, edges, n0=0.1*n, n1=0.9*n, pval.appr=TRUE, skew.corr=TRUE, pval.perm=TRUE, B=1000, alpha=1, kappa=1)
+res = gSeg1_repeated(n, l, edges, n0=0.1*n, n1=0.9*n, pval.appr=TRUE, skew.corr=TRUE, pval.perm=TRUE, B=1000, alpha=1, kappa=1)
 ```
 
     ## 1000 permutations completed.
@@ -202,7 +202,7 @@ Permutation p-value only:
 
 ``` r
 set.seed(16)
-res_perm = gseg1_repeated(n, l, edges, n0=0.1*n, n1=0.9*n, pval.appr=FALSE, skew.corr=FALSE, pval.perm=TRUE, B=1000, alpha=1, kappa=1)
+res_perm = gSeg1_repeated(n, l, edges, n0=0.1*n, n1=0.9*n, pval.appr=FALSE, skew.corr=FALSE, pval.perm=TRUE, B=1000, alpha=1, kappa=1)
 ```
 
     ## 1000 permutations completed.
@@ -214,7 +214,7 @@ res_perm = gseg1_repeated(n, l, edges, n0=0.1*n, n1=0.9*n, pval.appr=FALSE, skew
 Approximation p-value only:
 
 ``` r
-res_appr = gseg1_repeated(n, l, edges, n0=0.1*n, n1=0.9*n, pval.appr=TRUE, skew.corr=TRUE, pval.perm=FALSE, B=1000, alpha=1, kappa=1)
+res_appr = gSeg1_repeated(n, l, edges, n0=0.1*n, n1=0.9*n, pval.appr=TRUE, skew.corr=TRUE, pval.perm=FALSE, B=1000, alpha=1, kappa=1)
 ```
 
     ## Repeated edge-count statistic: 
@@ -231,7 +231,8 @@ detection. The Annals of Statistics, 43(1), 139-176.
 <https://doi.org/10.1214/14-AOS1269>
 
 `gSeg` associated with this paper served as a reference for developing
-`gseg1_repeated()`.
+`gSeg1_repeated()`.
+
 
 
 
