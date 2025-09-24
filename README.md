@@ -43,9 +43,9 @@ Users may generate data and edges by other methods if preferred. The edge-genera
   individual index. Repeated measures of one individual share the same
   node index.
 - `n0`: Starting index to be considered as a candidate for the
-  change-point.
+  change-point. The default value is 0.05*n.
 - `n1`: Ending index to be considered as a candidate for the
-  change-point.
+  change-point. The default value is 0.95*n.
 
 #### P-value arguments
 
@@ -230,6 +230,7 @@ detection. The Annals of Statistics, 43(1), 139-176.
 
 `gSeg` associated with this paper served as a reference for developing
 `gSeg1_repeated()`.
+
 
 
 
