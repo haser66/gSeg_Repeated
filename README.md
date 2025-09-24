@@ -8,13 +8,13 @@ is greater than the significance level, no change-point is detected;
 otherwise, $\tau$ is taken as the estimated change-point.
 
 The method is based on a max-type scan statistic $\max_t M(t)$, which
-combines between-individual and within-individual edge-count statistics.
+combines between-individual and within-individual statistics.
 Specifically,
 
-- Between-individual statistic: $M_\text{out}(t)$ captures between-individual changes by combining the
+- Between-individual edge-count statistic: $M_\text{out}(t)$ captures between-individual changes by combining the
   weighted statistic $Z_{\text{out},w}(t)$ and the differenced statistic
   $|Z_{\text{out},d}(t)|$.
-- Within-individual statistic: $|Z_\text{in}(t)|$ captures within-individual changes. These components
+- Within-individual edge-count statistic: $|Z_\text{in}(t)|$ captures within-individual changes. These components
   are integrated into the max-type statistic to achieve sensitivity to
   both between-individual and within-individual shifts.
 
@@ -230,6 +230,7 @@ detection. The Annals of Statistics, 43(1), 139-176.
 
 `gSeg` associated with this paper served as a reference for developing
 `gSeg1_repeated()`.
+
 
 
 
