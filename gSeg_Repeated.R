@@ -2,7 +2,7 @@
 library(dplyr)
 
 
-gseg1_repeated = function(n, l, edges, n0=0.05*n, n1=0.95*n, pval.appr=TRUE, skew.corr=TRUE, pval.perm=FALSE, B=100, alpha=1, kappa=1){
+gSeg1_repeated = function(n, l, edges, n0=0.05*n, n1=0.95*n, pval.appr=TRUE, skew.corr=TRUE, pval.perm=FALSE, B=100, alpha=1, kappa=1){
   
   r1 = list()
   n0 = ceiling(n0)
@@ -703,6 +703,7 @@ permpval1 = function(n, l, Ebynode, scanZ, B, n0=ceiling(0.05*n), n1=floor(0.95*
   
   return(output)
 }
+
 
 
 
