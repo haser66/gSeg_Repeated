@@ -30,9 +30,7 @@ can be sourced directly and used without installing a package.
 `gSeg1_repeated()` requires the `dplyr` package for internal data handling.
 
 For the example code, the `MASS` package is used to generate data via `mvrnorm()`, and the `ade4` package is used to construct k-MST edges with the `mstree()` function.
-Users may generate data and edges by other methods if preferred.
-
-The helper function `generate_kMST_edges()` also requires `MASS` and `ade4`.
+Users may generate data and edges by other methods if preferred. The edge-generating function `generate_kMST_edges()` also requires `MASS` and `ade4`.
 
 ## Arguments
 
@@ -232,6 +230,7 @@ detection. The Annals of Statistics, 43(1), 139-176.
 
 `gSeg` associated with this paper served as a reference for developing
 `gSeg1_repeated()`.
+
 
 
 
