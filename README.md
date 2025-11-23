@@ -167,8 +167,8 @@ res = gSeg_repeated(n, l, edges, n0=0.1*n, n1=0.9*n, pval.appr=TRUE, skew.corr=T
     ## Repeated edge-count statistic: 
     ##   Estimated change-point location: 50 
     ##   Test statistic (M): 3.907087 
-    ##   Final Approximated p-value: 0.01440748 
-    ##   Final p-value from 1000 permutations: 0.01430752
+    ##   Final Approximated p-value: 0.009129562 
+    ##   Final p-value from 1000 permutations: 0.009
 
 Extract key values:
 
@@ -188,13 +188,13 @@ res$scanZ$rmax$tauhat
 res$pval.appr$pval
 ```
 
-    ## [1] 0.01440748
+    ## [1] 0.009129562
 
 ``` r
 res$pval.perm$pval
 ```
 
-    ## [1] 0.01430752
+    ## [1] 0.009
 
 Permutation p-value only:
 
@@ -207,7 +207,7 @@ res_perm = gSeg_repeated(n, l, edges, n0=0.1*n, n1=0.9*n, pval.appr=FALSE, skew.
     ## Repeated edge-count statistic: 
     ##   Estimated change-point location: 50 
     ##   Test statistic (M): 3.907087 
-    ##   Final p-value from 1000 permutations: 0.01430752
+    ##   Final p-value from 1000 permutations: 0.009
 
 Approximation p-value only:
 
@@ -218,7 +218,7 @@ res_appr = gSeg_repeated(n, l, edges, n0=0.1*n, n1=0.9*n, pval.appr=TRUE, skew.c
     ## Repeated edge-count statistic: 
     ##   Estimated change-point location: 50 
     ##   Test statistic (M): 3.907087 
-    ##   Final Approximated p-value: 0.01440748
+    ##   Final Approximated p-value: 0.009129562
 
 ## References
 
@@ -230,6 +230,7 @@ detection. The Annals of Statistics, 43(1), 139-176.
 
 `gSeg` associated with this paper served as a reference for developing
 `gSeg_repeated()`.
+
 
 
 
