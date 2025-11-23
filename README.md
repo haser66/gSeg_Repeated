@@ -7,16 +7,16 @@ estimated change-point $\tau$ and its associated p-value. If the p-value
 is greater than the significance level, no change-point is detected;
 otherwise, $\tau$ is taken as the estimated change-point.
 
-The method is based on a max-type scan statistic $\max_t M(t)$, which
-combines between-individual and within-individual statistics.
-Specifically,
+The method is based on a max-type scan statistic $\max_t M(t)$ that integrates three edge-count components:
 
-- Between-individual edge-count statistic: $M_\text{out}(t)$ captures between-individual changes by combining the
-  weighted statistic $Z_{\text{out},w}(t)$ and the differenced statistic
-  $|Z_{\text{out},d}(t)|$.
-- Within-individual edge-count statistic: $|Z_\text{in}(t)|$ captures within-individual changes. These components
-  are integrated into the max-type statistic to achieve sensitivity to
-  both between-individual and within-individual shifts.
+– Between-individual statistics:
+  • The weighted statistic $Z_{\text{out},w}(t)$ captures location changes between individuals.
+  • The differenced statistic $|Z_{\text{out},d}(t)|$ captures scale changes between individuals.
+
+– Within-individual statistic:
+  • The orthogonalized statistic $|\tilde{Z}_{\text{in}}(t)|$ captures within-individual variability.
+
+By taking the maximum over these components, the scan statistic achieves sensitivity to both between-individual and within-individual distributional shifts.
 
 Although `gSeg_repeated()` estimates a single change-point, multiple
 change-points can be identified by recursively applying the procedure in
@@ -230,6 +230,7 @@ detection. The Annals of Statistics, 43(1), 139-176.
 
 `gSeg` associated with this paper served as a reference for developing
 `gSeg_repeated()`.
+
 
 
 
