@@ -72,19 +72,19 @@ Users may generate data and edges by other methods if preferred. The edge-genera
 
 - `Zmax`: Value of $\max_t M(t)$ at the estimated $\tau$.
 - `tauhat`: Estimated $\tau$, corresponding to $\arg\max_t M(t)$.
-- `Zowmax`, `Zodmax`, `Zinmax`, `Moutmax`: Values of
-  $Z_{\text{out},w}(t)$, $|Z_{\text{out},d}(t)|$, $|Z_\text{in}(t)|$,
-  and $M_\text{out}(t)$ at the estimated $\tau$.
-- `M`, `Zow`, `Zod`, `Zin`, `Mout`: Arrays of $M(t)$,
-  $Z_{\text{out},w}(t)$, $|Z_{\text{out},d}(t)|$, $|Z_\text{in}(t)|$,
-  and $M_\text{out}(t)$ over all candidate time points.
+- `Zowmax`, `Todmax`, `Tinmax`: Values of
+  $Z_{\text{out},w}(t)$, $|Z_{\text{out},d}(t)|$, and $|\tilde{Z}_\text{in}(t)|$
+  at the estimated $\tau$.
+- `M`, `Zow`, `Tod`, `Tin`: Arrays of $M(t)$,
+  $Z_{\text{out},w}(t)$, $|Z_{\text{out},d}(t)|$, and $|\tilde{Z}_\text{in}(t)|$
+  over all candidate time points.
 
 #### pval.perm / pval.appr
 
 - `pval`: Final permutation/approximated p-value, combined using CCT.
-- `pval1`, `pval2`, `pval3`, `pvalMout`: Individual
+- `pval1`, `pval2`, `pval3`: Individual
   permutation/approximated p-values of $Z_{\text{out},w}(t)$,
-  $|Z_{\text{out},d}(t)|$, $|Z_\text{in}(t)|$, and $M_\text{out}(t)$.
+  $|Z_{\text{out},d}(t)|$, and $|\tilde{Z}_\text{in}(t)|$.
 - Permutation p-value may vary across runs. Set a random seed if you
   want a reproducible result.
 
@@ -230,6 +230,7 @@ detection. The Annals of Statistics, 43(1), 139-176.
 
 `gSeg` associated with this paper served as a reference for developing
 `gSeg_repeated()`.
+
 
 
 
