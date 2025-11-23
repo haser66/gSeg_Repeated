@@ -5,7 +5,7 @@ library(ade4)
 generate_kMST_edges <- function(tau_, n, l, p,
                                 rho1, beta1, epsilon1, nu11, nu12,
                                 rho2, beta2, epsilon2, nu21, nu22,
-                                sigma, k = 3, seed = 16) {
+                                sigma, k = 9, seed = 16) {
   
   set.seed(seed)
   
@@ -47,4 +47,5 @@ generate_kMST_edges <- function(tau_, n, l, p,
   edges <- edges[order(edges[,1], edges[,2]), ]
   
   return(edges)
+
 }
