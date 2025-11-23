@@ -150,7 +150,7 @@ sigma <- 1
 edges <- generate_kMST_edges(tau, n, l, p,
                              rho1, beta1, epsilon1, nu11, nu12,
                              rho2, beta2, epsilon2, nu21, nu22,
-                             sigma, k=9, seed = 16)
+                             sigma, k=9, seed = 43)
 ```
 
 ## Result
@@ -159,16 +159,16 @@ Run the function `gSeg_repeated()` with both permutation and
 approximation:
 
 ``` r
-set.seed(16)
+set.seed(43)
 res = gSeg_repeated(n, l, edges, n0=0.1*n, n1=0.9*n, pval.appr=TRUE, skew.corr=TRUE, pval.perm=TRUE, B=1000, alpha=1, kappa=1)
 ```
 
     ## 1000 permutations completed.
     ## Repeated edge-count statistic: 
     ##   Estimated change-point location: 50 
-    ##   Test statistic (M): 3.907087 
-    ##   Final Approximated p-value: 0.009129562 
-    ##   Final p-value from 1000 permutations: 0.009
+    ##   Test statistic (M): 4.242531 
+    ##   Final Approximated p-value: 0.003072569 
+    ##   Final p-value from 1000 permutations: 0.003
 
 Extract key values:
 
@@ -176,7 +176,7 @@ Extract key values:
 res$scanZ$rmax$Zmax
 ```
 
-    ## [1] 3.907087
+    ## [1] 4.242531
 
 ``` r
 res$scanZ$rmax$tauhat
@@ -188,37 +188,38 @@ res$scanZ$rmax$tauhat
 res$pval.appr$pval
 ```
 
-    ## [1] 0.009129562
+    ## [1] 0.003072569
 
 ``` r
 res$pval.perm$pval
 ```
 
-    ## [1] 0.009
+    ## [1] 0.003
 
 Permutation p-value only:
 
 ``` r
-set.seed(16)
+set.seed(43)
 res_perm = gSeg_repeated(n, l, edges, n0=0.1*n, n1=0.9*n, pval.appr=FALSE, skew.corr=FALSE, pval.perm=TRUE, B=1000, alpha=1, kappa=1)
 ```
 
     ## 1000 permutations completed.
     ## Repeated edge-count statistic: 
     ##   Estimated change-point location: 50 
-    ##   Test statistic (M): 3.907087 
-    ##   Final p-value from 1000 permutations: 0.009
+    ##   Test statistic (M): 4.242531 
+    ##   Final p-value from 1000 permutations: 0.003
 
 Approximation p-value only:
 
 ``` r
+set.seed(43)
 res_appr = gSeg_repeated(n, l, edges, n0=0.1*n, n1=0.9*n, pval.appr=TRUE, skew.corr=TRUE, pval.perm=FALSE, B=1000, alpha=1, kappa=1)
 ```
 
     ## Repeated edge-count statistic: 
     ##   Estimated change-point location: 50 
-    ##   Test statistic (M): 3.907087 
-    ##   Final Approximated p-value: 0.009129562
+    ##   Test statistic (M): 4.242531 
+    ##   Final Approximated p-value: 0.003072569
 
 ## References
 
@@ -230,6 +231,7 @@ detection. The Annals of Statistics, 43(1), 139-176.
 
 `gSeg` associated with this paper served as a reference for developing
 `gSeg_repeated()`.
+
 
 
 
