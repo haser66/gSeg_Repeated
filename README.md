@@ -9,12 +9,12 @@ otherwise, $\tau$ is taken as the estimated change-point.
 
 The method is based on a max-type scan statistic $\max_t M(t)$ that integrates three edge-count components:
 
-– Between-individual statistics:
-  • The weighted statistic $Z_{\text{out},w}(t)$ captures location changes between individuals.
-  • The differenced statistic $|Z_{\text{out},d}(t)|$ captures scale changes between individuals.
+#### Between-individual statistics:
+- The weighted statistic $Z_{\text{out},w}(t)$ captures location changes between individuals.
+- The differenced statistic $|Z_{\text{out},d}(t)|$ captures scale changes between individuals.
 
-– Within-individual statistic:
-  • The orthogonalized statistic $|\tilde{Z}_{\text{in}}(t)|$ captures within-individual variability.
+#### Within-individual statistic:
+- The orthogonalized statistic $|\tilde{Z}_{\text{in}}(t)|$ captures within-individual variability.
 
 By taking the maximum over these components, the scan statistic achieves sensitivity to both between-individual and within-individual distributional shifts.
 
@@ -230,6 +230,7 @@ detection. The Annals of Statistics, 43(1), 139-176.
 
 `gSeg` associated with this paper served as a reference for developing
 `gSeg_repeated()`.
+
 
 
 
