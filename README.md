@@ -1,5 +1,7 @@
 Change-Point Detection With Multivariate Repeated Measures
 ================
+See the full paper on arXiv: https://doi.org/10.48550/arXiv.2511.18432
+
 
 `gSeg_repeated()` implements a graph-based change-point detection
 method for multivariate repeated measures data. It returns a single
@@ -231,6 +233,7 @@ detection. The Annals of Statistics, 43(1), 139-176.
 
 `gSeg` associated with this paper served as a reference for developing
 `gSeg_repeated()`.
+
 
 
 
